@@ -39,13 +39,13 @@ import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
+import org.apache.james.core.MailAddress;
+import org.apache.james.core.builder.MimeMessageBuilder;
 import org.apache.mailet.Mail;
-import org.apache.mailet.MailAddress;
 import org.apache.mailet.MailetException;
 import org.apache.mailet.PerRecipientHeaders;
 import org.apache.mailet.base.test.FakeMail;
 import org.apache.mailet.base.test.FakeMailetConfig;
-import org.apache.mailet.base.test.MimeMessageBuilder;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -59,7 +59,6 @@ import org.mockserver.model.Parameter;
 import org.mockserver.model.StringBody;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Throwables;
 import com.linagora.james.mailets.json.FakeUUIDGenerator;
 
 import ch.qos.logback.classic.Logger;
@@ -659,7 +658,7 @@ public class GuessClassificationMailetTest {
             try {
                 Thread.sleep(timeoutInMs);
             } catch (InterruptedException e) {
-                Throwables.propagate(e);
+                throw new RuntimeException(e);
             }
         }
     }

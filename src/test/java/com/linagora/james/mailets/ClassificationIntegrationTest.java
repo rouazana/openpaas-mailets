@@ -22,6 +22,7 @@ import static org.mockito.Mockito.mock;
 import java.util.Base64;
 
 import org.apache.james.jmap.mailet.VacationMailet;
+import org.apache.james.jmap.mailet.filter.JMAPFiltering;
 import org.apache.james.mailbox.model.MailboxConstants;
 import org.apache.james.mailbox.store.search.ListeningMessageSearchIndex;
 import org.apache.james.mailets.TemporaryJamesServer;
@@ -46,6 +47,9 @@ import org.apache.james.transport.matchers.SMTPAuthSuccessful;
 import org.apache.james.utils.DataProbeImpl;
 import org.apache.james.utils.IMAPMessageReader;
 import org.apache.james.utils.SMTPMessageSender;
+import org.awaitility.Awaitility;
+import org.awaitility.Duration;
+import org.awaitility.core.ConditionFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -57,10 +61,6 @@ import org.mockserver.matchers.Times;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.model.Parameter;
-
-import com.jayway.awaitility.Awaitility;
-import com.jayway.awaitility.Duration;
-import com.jayway.awaitility.core.ConditionFactory;
 
 public class ClassificationIntegrationTest {
 
@@ -84,21 +84,16 @@ public class ClassificationIntegrationTest {
     @Before
     public void setup() throws Exception {
         MailetContainer mailetContainer = MailetContainer.builder()
-            .postmaster("postmaster@" + DEFAULT_DOMAIN)
-            .threads(5)
-            .addProcessor(CommonProcessors.root())
-            .addProcessor(CommonProcessors.error())
-            .addProcessor(transportProcessorWithGuessClassificationMailet())
-            .addProcessor(CommonProcessors.spam())
-            .addProcessor(CommonProcessors.localAddressError())
-            .addProcessor(CommonProcessors.relayDenied())
-            .addProcessor(CommonProcessors.bounces())
-            .addProcessor(CommonProcessors.sieveManagerCheck())
+            .putProcessor(CommonProcessors.root())
+            .putProcessor(CommonProcessors.error())
+            .putProcessor(transportProcessorWithGuessClassificationMailet())
             .build();
 
-        jamesServer = new TemporaryJamesServer(temporaryFolder, mailetContainer,
-            new JMXServerModule(),
-            binder -> binder.bind(ListeningMessageSearchIndex.class).toInstance(mock(ListeningMessageSearchIndex.class)));
+        jamesServer = TemporaryJamesServer.builder()
+            .withMailetContainer(mailetContainer)
+            .withOverrides(new JMXServerModule())
+            .withOverrides(binder -> binder.bind(ListeningMessageSearchIndex.class).toInstance(mock(ListeningMessageSearchIndex.class)))
+            .build(temporaryFolder);
         Duration slowPacedPollInterval = Duration.FIVE_HUNDRED_MILLISECONDS;
         calmlyAwait = Awaitility.with()
             .pollInterval(slowPacedPollInterval)
@@ -132,6 +127,9 @@ public class ClassificationIntegrationTest {
                 .matcher(RecipientIsLocal.class)
                 .mailet(VacationMailet.class)
                 .build())
+            .addMailet(MailetConfiguration.builder()
+                    .matcher(RecipientIsLocal.class)
+                    .mailet(JMAPFiltering.class))
             .addMailet(MailetConfiguration.builder()
                 .matcher(RecipientIsLocal.class)
                 .mailet(Sieve.class)
@@ -202,10 +200,11 @@ public class ClassificationIntegrationTest {
         jamesServer.getProbe(MailboxProbeImpl.class).createMailbox(MailboxConstants.USER_NAMESPACE, recipientTo, "INBOX");
 
         try (SMTPMessageSender messageSender = SMTPMessageSender.noAuthentication(LOCALHOST_IP, SMTP_PORT, DEFAULT_DOMAIN);
-             IMAPMessageReader imapMessageReader = new IMAPMessageReader(LOCALHOST_IP, IMAP_PORT)) {
+             IMAPMessageReader imapMessageReader = new IMAPMessageReader()) {
             messageSender.sendMessage(from, recipientTo);
-            calmlyAwait.until(messageSender::messageHasBeenSent);
-            calmlyAwait.until(() -> imapMessageReader.userReceivedMessage(recipientTo, PASSWORD));
+            imapMessageReader.connect(LOCALHOST_IP, IMAP_PORT)
+                .login(recipientTo, PASSWORD)
+                .awaitMessage(calmlyAwait);
 
             calmlyAwait.until(() -> imapMessageReader.readFirstMessageHeadersInInbox(recipientTo, PASSWORD)
                 .contains("X-Classification-Guess: {" +
@@ -241,10 +240,11 @@ public class ClassificationIntegrationTest {
         jamesServer.getProbe(MailboxProbeImpl.class).createMailbox(MailboxConstants.USER_NAMESPACE, recipientTo, "INBOX");
 
         try (SMTPMessageSender messageSender = SMTPMessageSender.noAuthentication(LOCALHOST_IP, SMTP_PORT, DEFAULT_DOMAIN);
-             IMAPMessageReader imapMessageReader = new IMAPMessageReader(LOCALHOST_IP, IMAP_PORT)) {
+             IMAPMessageReader imapMessageReader = new IMAPMessageReader()) {
             messageSender.sendMessage(from, recipientTo);
-            calmlyAwait.until(messageSender::messageHasBeenSent);
-            calmlyAwait.until(() -> imapMessageReader.userReceivedMessage(recipientTo, PASSWORD));
+            imapMessageReader.connect(LOCALHOST_IP, IMAP_PORT)
+                .login(recipientTo, PASSWORD)
+                .awaitMessage(calmlyAwait);
 
             calmlyAwait.until(() -> imapMessageReader.readFirstMessageHeadersInInbox(recipientTo, PASSWORD)
                 .contains("X-Classification-Guess: {" +
@@ -274,10 +274,11 @@ public class ClassificationIntegrationTest {
         jamesServer.getProbe(MailboxProbeImpl.class).createMailbox(MailboxConstants.USER_NAMESPACE, recipientTo, "INBOX");
 
         try (SMTPMessageSender messageSender = SMTPMessageSender.noAuthentication(LOCALHOST_IP, SMTP_PORT, DEFAULT_DOMAIN);
-             IMAPMessageReader imapMessageReader = new IMAPMessageReader(LOCALHOST_IP, IMAP_PORT)) {
+             IMAPMessageReader imapMessageReader = new IMAPMessageReader()) {
             messageSender.sendMessage(from, recipientTo);
-            calmlyAwait.until(messageSender::messageHasBeenSent);
-            calmlyAwait.until(() -> imapMessageReader.userReceivedMessage(recipientTo, PASSWORD));
+            imapMessageReader.connect(LOCALHOST_IP, IMAP_PORT)
+                .login(recipientTo, PASSWORD)
+                .awaitMessage(calmlyAwait);
         }
     }
 }

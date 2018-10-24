@@ -22,8 +22,8 @@ import static net.javacrumbs.jsonunit.fluent.JsonFluentAssert.assertThatJson;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
+import org.apache.james.core.builder.MimeMessageBuilder;
 import org.apache.mailet.base.test.FakeMail;
-import org.apache.mailet.base.test.MimeMessageBuilder;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
